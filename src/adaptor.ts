@@ -1,7 +1,7 @@
 import Emitter from "@cch137/emitter";
 import Shuttle from "@cch137/shuttle";
-import {
-  ASOClientObject,
+import type {
+  Entangled,
   ClientRequest,
   ServerFunctionReturn,
   ServerResponse,
@@ -107,11 +107,5 @@ export default function createClientAdaptor<
       );
       return Reflect.deleteProperty(t, p);
     },
-    defineProperty: () => {
-      throw new Error("Cannot define property of this object");
-    },
-    getOwnPropertyDescriptor: () => {
-      throw new Error("Cannot get own property descriptor of this object");
-    },
-  }) as ASOClientObject<T, O, P>;
+  }) as Entangled<T, O, P>;
 }

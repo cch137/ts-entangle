@@ -1,12 +1,11 @@
 import Shuttle from "@cch137/shuttle";
 import { WebSocket } from "ws";
-import {
+import type {
   ClientRequest,
   ServerFunctionReturn,
   ServerResponse,
   ServerSetter,
 } from "./types.js";
-import { resolveBuffer } from "./utils.js";
 
 function sendResponse(socket: WebSocket, response: ServerResponse) {
   socket.send(Shuttle.serialize(response));
@@ -46,7 +45,13 @@ export default function createEntangleServer<T extends object>(
     }
 
     soc.on("message", async (data) => {
-      const pack = Shuttle.parse<ClientRequest<T>>(resolveBuffer(data));
+      if (Array.isArray(data)) data = Buffer.concat(data);
+
+      const pack = Shuttle.parse<ClientRequest<T>>(
+        data instanceof ArrayBuffer
+          ? new Uint8Array(data)
+          : Uint8Array.from(data)
+      );
 
       switch (pack.op) {
         case "set": {
@@ -140,7 +145,7 @@ export default function createEntangleServer<T extends object>(
         }
       }
     },
-  }) as any as { [Handle](soc: WebSocket): void } & T;
+  }) as any as T & { [Handle](soc: WebSocket): void };
 }
 
 createEntangleServer.Handle = Handle;

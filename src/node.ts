@@ -1,12 +1,16 @@
 import type { ClientRequestArgs } from "http";
 import { WebSocket, type ClientOptions } from "ws";
 import createClientAdaptor from "./adaptor.js";
+import type { Entangled } from "./types.js";
 
 export default function createEntangle<
   T extends object,
   O extends Array<keyof T> | undefined = undefined,
   P extends Array<keyof T> | undefined = undefined
->(address: string, options?: ClientOptions | ClientRequestArgs) {
+>(
+  address: string,
+  options?: ClientOptions | ClientRequestArgs
+): Entangled<T, O, P> {
   return createClientAdaptor<T, O, P>((onopen, onmessage) => {
     const constructor = () => {
       const ws = new WebSocket(address, options);
@@ -17,6 +21,8 @@ export default function createEntangle<
         if (data instanceof Buffer) onmessage(Uint8Array.from(data));
         else if (data instanceof Uint8Array) onmessage(data);
         else if (data instanceof ArrayBuffer) onmessage(new Uint8Array(data));
+        else if (Array.isArray(data))
+          onmessage(Uint8Array.from(Buffer.concat(data)));
         else throw new Error("Invalid Type");
       });
 

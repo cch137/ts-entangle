@@ -1,10 +1,6 @@
-import type ws from "ws";
-import { AsyncWrappedObject } from "./types.js";
+import type { AsyncWrappedObject } from "./types.js";
 
-export const resolveBuffer = (data: ws.RawData) =>
-  Buffer.from(Array.isArray(data) ? Buffer.concat(data) : data);
-
-export function wrapAsyncObject<T extends object>(obj: T) {
+function wrapAsyncObject<T extends object>(obj: T) {
   const wrappedFunctions = new WeakMap<Function, Function>();
   return new Proxy(obj, {
     get: (t, p) => {

@@ -59,14 +59,8 @@ export type OmitKeys<
   K extends Array<keyof T> | undefined = undefined
 > = K extends undefined ? T : Omit<T, K extends Array<infer U> ? U : never>;
 
-export type LimitedObject<
+export type Entangled<
   T extends object,
   O extends Array<keyof T> | undefined = undefined,
   P extends Array<keyof T> | undefined = undefined
-> = OmitKeys<PickKeys<T, P>, O>;
-
-export type ASOClientObject<
-  T extends object,
-  O extends Array<keyof T> | undefined = undefined,
-  P extends Array<keyof T> | undefined = undefined
-> = AsyncWrappedObject<LimitedObject<T, O, P>>;
+> = AsyncWrappedObject<OmitKeys<PickKeys<T, P>, O>>;

@@ -1,10 +1,11 @@
 import createClientAdaptor from "./adaptor.js";
+import type { Entangled } from "./types.js";
 
 export default function createEntangle<
   T extends object,
   O extends Array<keyof T> | undefined = undefined,
   P extends Array<keyof T> | undefined = undefined
->(address: string, protocols?: string | string[]) {
+>(address: string, protocols?: string | string[]): Entangled<T, O, P> {
   return createClientAdaptor<T, O, P>((onopen, onmessage) => {
     const constructor = () => {
       const ws = new WebSocket(address, protocols);
