@@ -1,19 +1,65 @@
-import Emitter from "@cch137/emitter";
+import Emitter, { type ExtractEventMap } from "@cch137/emitter";
 import { serialize, parse } from "@cch137/shuttle";
 import type {
   EntangledObject,
   ClientRequest,
   ServerFunctionReturn,
   ServerResponse,
-  Adaptor,
+  UUID,
 } from "./types.js";
 
-export const Entangled = Symbol("Entangled");
-export const Connect = Symbol("Connect");
-export const Disconnect = Symbol("Disconnect");
-export const OnReady = Symbol("OnReady");
+export const Adaptor = Symbol("Adaptor");
 
-export type AdaptorOptions = {
+export const Ready = Symbol("Ready");
+
+type WebSocketLike = { send: (data: Uint8Array) => void; close: () => void };
+
+type SocketBuilder = (emitter: AdaptorSocketEmitter) => WebSocketLike;
+
+type AdaptorSocketEmitter = Emitter<{
+  connect: [];
+  message: [data: Uint8Array];
+  disconnect: [];
+}>;
+
+export class EntangleAdaptor extends Emitter<
+  ExtractEventMap<AdaptorSocketEmitter> & {
+    ready: [];
+  } & {
+    [uuid: UUID]: [value: ServerFunctionReturn];
+  }
+> {
+  entangled = true;
+  connected = false;
+  ready = false;
+  websocket: WebSocketLike;
+
+  builder: SocketBuilder;
+
+  constructor(builder: SocketBuilder) {
+    super();
+    this.builder = builder;
+    this.websocket = builder(this);
+  }
+
+  connect() {
+    if (this.entangled) return;
+    this.entangled = true;
+    this.websocket = this.builder(this);
+  }
+
+  disconnect() {
+    if (!this.entangled) return;
+    this.entangled = false;
+    this.websocket.close();
+  }
+
+  send(data: Uint8Array) {
+    this.websocket.send(data);
+  }
+}
+
+export type EntangleOptions = {
   timeout?: number;
   salts?: number[];
   md5?: boolean;
@@ -25,36 +71,27 @@ export type EntangledClient<
   PickedKeys extends Array<keyof T> | undefined = undefined,
   ReadonlyKeys extends Array<keyof T> | undefined = undefined
 > = EntangledObject<T, OmittedKeys, PickedKeys, ReadonlyKeys> & {
-  [Entangled]?: boolean;
-  [Connect]?: () => void;
-  [Disconnect]?: () => void;
-  [OnReady]: Set<() => void>;
+  [Adaptor]: EntangleAdaptor;
+  [Ready]: () => Promise<
+    EntangledClient<T, OmittedKeys, PickedKeys, ReadonlyKeys>
+  >;
 };
 
-export default function createAdaptor<
+export default function createEntangleBase<
   T extends object,
   OmittedKeys extends Array<keyof T> | undefined = undefined,
   PickedKeys extends Array<keyof T> | undefined = undefined,
   ReadonlyKeys extends Array<keyof T> | undefined = undefined
->(
-  adaptorConstructor: (
-    onopen: () => void,
-    onmessage: (data: Uint8Array) => void,
-    ondestroy?: () => void
-  ) => Adaptor,
-  options: AdaptorOptions = {}
-) {
+>(builder: SocketBuilder, options: EntangleOptions = {}) {
   let props: any = {};
   const { timeout = 10000, ...shuttleOptions } = options;
-  const emitter = new Emitter<{
-    [uuid: string]: [value: ServerFunctionReturn];
-  }>();
+  const adaptor = new EntangleAdaptor(builder);
 
   const callFunction = (name: string, args: any[]) =>
     new Promise((resolve, reject) => {
       const uuid = crypto.randomUUID();
       const tOut = setTimeout(() => {
-        emitter.off(uuid, listener);
+        adaptor.off(uuid, listener);
         reject(new Error("Timeout"));
       }, timeout);
       const listener = (data: ServerFunctionReturn) => {
@@ -65,9 +102,9 @@ export default function createAdaptor<
           resolve(data.value);
         }
       };
-      emitter.once(uuid, listener);
+      adaptor.once(uuid, listener);
       try {
-        send(
+        adaptor.send(
           serialize(
             {
               op: "call",
@@ -81,15 +118,20 @@ export default function createAdaptor<
       } catch (e) {
         reject(e);
         clearTimeout(tOut);
-        emitter.off(uuid, listener);
+        adaptor.off(uuid, listener);
       }
     });
 
-  const onopen = () => {
-    for (const key in props) delete props[key];
-  };
+  adaptor.on("connect", () => {
+    adaptor.connected = true;
+    for (const key in props) Reflect.deleteProperty(props, key);
+  });
 
-  const onmessage = (data: Uint8Array) => {
+  adaptor.on("ready", () => {
+    adaptor.ready = true;
+  });
+
+  adaptor.on("message", (data) => {
     const pack = parse<ServerResponse>(data, shuttleOptions);
     switch (pack.op) {
       case "set": {
@@ -102,37 +144,47 @@ export default function createAdaptor<
         break;
       }
       case "return": {
-        emitter.emit(pack.uuid, pack);
+        adaptor.emit(pack.uuid, pack);
         break;
       }
       case "ready": {
+        adaptor.emit("ready");
         onreadyCallbacks.forEach(async (cb) => cb());
         break;
       }
     }
-  };
+  });
 
-  const { isEntangled, connect, disconnect, send } = adaptorConstructor(
-    onopen,
-    onmessage
-  );
+  adaptor.on("disconnect", () => {
+    adaptor.connected = false;
+    adaptor.ready = false;
+    if (adaptor.entangled) adaptor.websocket = adaptor.builder(adaptor);
+  });
 
   const onreadyCallbacks = new Set<() => void>();
 
-  return new Proxy(props, {
+  const proxy = new Proxy(props, {
     has: (t, p) => {
       return Reflect.has(t, p);
     },
     get: (t, p) => {
       switch (p) {
-        case Connect:
-          return connect;
-        case Disconnect:
-          return disconnect;
-        case Entangled:
-          return isEntangled();
-        case OnReady:
-          return onreadyCallbacks;
+        case Adaptor:
+          return adaptor;
+        case Ready:
+          return () => {
+            return new Promise((resolve, reject) => {
+              if (adaptor.ready) return resolve(proxy);
+              const tout = setTimeout(
+                () => reject(new Error("Timeout")),
+                timeout
+              );
+              adaptor.once("ready", () => {
+                clearTimeout(tout);
+                resolve(proxy);
+              });
+            });
+          };
         default:
           return Reflect.get(t, p);
       }
@@ -141,7 +193,7 @@ export default function createAdaptor<
       t[p] = v;
       if (typeof v === "function")
         throw new Error("Cannot set a function attribute to this object.");
-      send(
+      adaptor.send(
         serialize(
           { op: "set", key: p, value: v } as ClientRequest<T>,
           shuttleOptions
@@ -150,7 +202,7 @@ export default function createAdaptor<
       return Reflect.set(t, p, v);
     },
     deleteProperty: (t, p) => {
-      send(
+      adaptor.send(
         serialize(
           {
             op: "set",
@@ -163,9 +215,9 @@ export default function createAdaptor<
       return Reflect.deleteProperty(t, p);
     },
   }) as EntangledClient<T, OmittedKeys, PickedKeys, ReadonlyKeys>;
+
+  return proxy;
 }
 
-createAdaptor.Entangled = Entangled;
-createAdaptor.Connect = Connect;
-createAdaptor.Disconnect = Disconnect;
-createAdaptor.OnReady = OnReady;
+createEntangleBase.Adaptor = Adaptor;
+createEntangleBase.Ready = Ready;

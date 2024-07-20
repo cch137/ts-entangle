@@ -1,3 +1,5 @@
+export type UUID = `${string}-${string}-${string}-${string}-${string}`;
+
 export type AsyncFunctionWrapper<T extends Function> = T extends (
   ...args: infer A
 ) => infer R
@@ -24,12 +26,12 @@ export type ServerSetter = {
 export type ServerFunctionReturn =
   | {
       op: "return";
-      uuid: string;
+      uuid: UUID;
       value: any;
     }
   | {
       op: "return";
-      uuid: string;
+      uuid: UUID;
       error: true;
       message: string;
     };
@@ -38,7 +40,7 @@ export type ServerResponse = ServerReady | ServerSetter | ServerFunctionReturn;
 
 export type ClientCall = {
   op: "call";
-  uuid: string;
+  uuid: UUID;
   name: string;
   args: any[];
 };
@@ -50,13 +52,6 @@ export type ClientSetter<T extends object> = {
 };
 
 export type ClientRequest<T extends object> = ClientCall | ClientSetter<T>;
-
-export type Adaptor = {
-  isEntangled: () => boolean;
-  connect: () => void;
-  disconnect: () => void;
-  send: (data: Uint8Array) => void;
-};
 
 export type PickKeys<
   T,
