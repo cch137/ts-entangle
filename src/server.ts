@@ -11,9 +11,9 @@ export type KeyPermission<T> = {
 };
 
 export type EntangleServerOptions<T extends object> = {
-  pickedKeys?: (keyof T | string)[];
-  omittedKeys?: (keyof T | string)[];
-  readonlyKeys?: (keyof T | string)[];
+  pickedKeys?: (keyof T)[];
+  omittedKeys?: (keyof T)[];
+  readonlyKeys?: (keyof T)[];
   clientReadonly?: boolean;
   permissions?: KeyPermission<T>[];
 };
@@ -24,11 +24,11 @@ export default function createEntangleServer<T extends object>(
 ) {
   const clients = new Set<Client>();
 
-  const readables = new Map<keyof T | string, boolean>();
-  const writables = new Map<keyof T | string, boolean>();
+  const readables = new Map<keyof T, boolean>();
+  const writables = new Map<keyof T, boolean>();
 
-  const isReadable = (key: keyof T | string) => readables.get(key) ?? true;
-  const isWritable = (key: keyof T | string) => readables.get(key) ?? true;
+  const isReadable = (key: keyof T) => readables.get(key) ?? true;
+  const isWritable = (key: keyof T) => readables.get(key) ?? true;
 
   {
     const {
@@ -39,12 +39,12 @@ export default function createEntangleServer<T extends object>(
       permissions,
     } = options;
 
-    const keys = (Object.getOwnPropertyNames(target) as (keyof T | string)[])
+    const keys = (Object.getOwnPropertyNames(target) as (keyof T)[])
       .concat(pickedKeys || [], omittedKeys || [], readonlyKeys)
       .reduce((prev, curr) => {
         if (!prev.includes(curr)) prev.push(curr);
         return prev;
-      }, [] as (keyof T | string)[]);
+      }, [] as (keyof T)[]);
 
     for (const key of keys) {
       if (
