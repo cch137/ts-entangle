@@ -10,6 +10,10 @@ export type AsyncWrappedObject<T extends object> = {
   [K in keyof T]: T[K] extends Function ? AsyncFunctionWrapper<T[K]> : T[K];
 };
 
+export type ServerReady = {
+  op: "ready";
+};
+
 export type ServerSetter = {
   op: "set";
   key: string;
@@ -30,7 +34,7 @@ export type ServerFunctionReturn =
       message: string;
     };
 
-export type ServerResponse = ServerSetter | ServerFunctionReturn;
+export type ServerResponse = ServerReady | ServerSetter | ServerFunctionReturn;
 
 export type ClientCall = {
   op: "call";

@@ -11,11 +11,24 @@ import type {
 export const Entangled = Symbol("Entangled");
 export const Connect = Symbol("Connect");
 export const Disconnect = Symbol("Disconnect");
+export const OnReady = Symbol("OnReady");
 
 export type AdaptorOptions = {
   timeout?: number;
   salts?: number[];
   md5?: boolean;
+};
+
+export type EntangledClient<
+  T extends object,
+  OmittedKeys extends Array<keyof T> | undefined = undefined,
+  PickedKeys extends Array<keyof T> | undefined = undefined,
+  ReadonlyKeys extends Array<keyof T> | undefined = undefined
+> = EntangledObject<T, OmittedKeys, PickedKeys, ReadonlyKeys> & {
+  [Entangled]?: boolean;
+  [Connect]?: () => void;
+  [Disconnect]?: () => void;
+  [OnReady]?: (onReady: () => void) => void;
 };
 
 export default function createAdaptor<
@@ -92,6 +105,10 @@ export default function createAdaptor<
         emitter.emit(pack.uuid, pack);
         break;
       }
+      case "ready": {
+        onreadyCallbacks.forEach(async (cb) => cb());
+        break;
+      }
     }
   };
 
@@ -99,6 +116,8 @@ export default function createAdaptor<
     onopen,
     onmessage
   );
+
+  const onreadyCallbacks: (() => void)[] = [];
 
   return new Proxy(props, {
     has: (t, p) => {
@@ -112,6 +131,10 @@ export default function createAdaptor<
           return disconnect;
         case Entangled:
           return isEntangled();
+        case OnReady:
+          return (onReady: () => void) => {
+            onreadyCallbacks.push(onReady);
+          };
         default:
           return Reflect.get(t, p);
       }
@@ -145,5 +168,11 @@ export default function createAdaptor<
     [Entangled]?: boolean;
     [Connect]?: () => void;
     [Disconnect]?: () => void;
+    [OnReady]?: (onReady: () => void) => void;
   };
 }
+
+createAdaptor.Entangled = Entangled;
+createAdaptor.Connect = Connect;
+createAdaptor.Disconnect = Disconnect;
+createAdaptor.OnReady = OnReady;

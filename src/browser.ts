@@ -1,6 +1,10 @@
-import type { AdaptorOptions } from "./adaptor.js";
-import createAdaptor, { Entangled, Connect, Disconnect } from "./adaptor.js";
-import type { EntangledObject } from "./types.js";
+import type { AdaptorOptions, EntangledClient } from "./adaptor.js";
+import createAdaptor, {
+  Entangled,
+  Connect,
+  Disconnect,
+  OnReady,
+} from "./adaptor.js";
 
 export default function createEntangle<
   T extends object,
@@ -11,7 +15,7 @@ export default function createEntangle<
   address: string,
   protocols?: string | string[],
   options?: AdaptorOptions
-): EntangledObject<T, OmittedKeys, PickedKeys, ReadonlyKeys> {
+): EntangledClient<T, OmittedKeys, PickedKeys, ReadonlyKeys> {
   return createAdaptor<T, OmittedKeys, PickedKeys, ReadonlyKeys>(
     (onopen, onmessage) => {
       const constructor = () => {
@@ -61,3 +65,4 @@ export default function createEntangle<
 createEntangle.Entangled = Entangled;
 createEntangle.Connect = Connect;
 createEntangle.Disconnect = Disconnect;
+createEntangle.OnReady = OnReady;
