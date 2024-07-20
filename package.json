@@ -1,6 +1,6 @@
 {
   "name": "@cch137/entangle",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "description": "",
   "type": "module",
   "main": "index.js",
