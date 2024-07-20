@@ -28,7 +28,7 @@ export type EntangledClient<
   [Entangled]?: boolean;
   [Connect]?: () => void;
   [Disconnect]?: () => void;
-  [OnReady]?: (onReady: () => void) => void;
+  [OnReady]?: Set<() => void>;
 };
 
 export default function createAdaptor<
@@ -117,7 +117,7 @@ export default function createAdaptor<
     onmessage
   );
 
-  const onreadyCallbacks: (() => void)[] = [];
+  const onreadyCallbacks = new Set<() => void>();
 
   return new Proxy(props, {
     has: (t, p) => {
@@ -132,9 +132,7 @@ export default function createAdaptor<
         case Entangled:
           return isEntangled();
         case OnReady:
-          return (onReady: () => void) => {
-            onreadyCallbacks.push(onReady);
-          };
+          return onreadyCallbacks;
         default:
           return Reflect.get(t, p);
       }
@@ -164,12 +162,7 @@ export default function createAdaptor<
       );
       return Reflect.deleteProperty(t, p);
     },
-  }) as EntangledObject<T, OmittedKeys, PickedKeys, ReadonlyKeys> & {
-    [Entangled]?: boolean;
-    [Connect]?: () => void;
-    [Disconnect]?: () => void;
-    [OnReady]?: (onReady: () => void) => void;
-  };
+  }) as EntangledClient<T, OmittedKeys, PickedKeys, ReadonlyKeys>;
 }
 
 createAdaptor.Entangled = Entangled;

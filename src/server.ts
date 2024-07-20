@@ -124,6 +124,7 @@ export default function createEntangleServer<T extends object>(
 
     for (const key in target) if (!readables.has(key)) client.sync(key);
     readables.forEach((_, key) => client.sync(key));
+    client.send({ op: "ready" });
 
     soc.on("message", async (data) => {
       if (Array.isArray(data)) data = Buffer.concat(data);
