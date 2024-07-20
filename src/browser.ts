@@ -1,12 +1,15 @@
-import createClientAdaptor from "./adaptor.js";
-import type { Entangled } from "./types.js";
+import createAdaptor, { Entangled, Connect, Disconnect } from "./adaptor.js";
+import type { EntangledObject } from "./types.js";
 
 export default function createEntangle<
   T extends object,
-  O extends Array<keyof T> | undefined = undefined,
-  P extends Array<keyof T> | undefined = undefined
->(address: string, protocols?: string | string[]): Entangled<T, O, P> {
-  return createClientAdaptor<T, O, P>((onopen, onmessage) => {
+  OmittedKeys extends Array<keyof T> | undefined = undefined,
+  PickedKeys extends Array<keyof T> | undefined = undefined
+>(
+  address: string,
+  protocols?: string | string[]
+): EntangledObject<T, OmittedKeys, PickedKeys> {
+  return createAdaptor<T, OmittedKeys, PickedKeys>((onopen, onmessage) => {
     const constructor = () => {
       const ws = new WebSocket(address, protocols);
 
@@ -19,14 +22,36 @@ export default function createEntangle<
       });
 
       ws.addEventListener("close", () => {
-        websocket = constructor();
+        if (entangled) websocket = constructor();
       });
 
       return ws;
     };
 
+    let entangled = true;
     let websocket = constructor();
 
-    return (data: Uint8Array) => websocket.send(data);
+    const connect = () => {
+      if (entangled) return;
+      entangled = true;
+      websocket = constructor();
+    };
+
+    const disconnect = () => {
+      if (!entangled) return;
+      entangled = false;
+      websocket.close();
+    };
+
+    return {
+      send: (data: Uint8Array) => websocket.send(data),
+      connect,
+      disconnect,
+      isEntangled: () => entangled,
+    };
   });
 }
+
+createEntangle.Entangled = Entangled;
+createEntangle.Connect = Connect;
+createEntangle.Disconnect = Disconnect;

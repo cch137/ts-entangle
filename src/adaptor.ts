@@ -1,21 +1,27 @@
 import Emitter from "@cch137/emitter";
-import Shuttle from "@cch137/shuttle";
+import { serialize, parse } from "@cch137/shuttle";
 import type {
-  Entangled,
+  EntangledObject,
   ClientRequest,
   ServerFunctionReturn,
   ServerResponse,
+  Adaptor,
 } from "./types.js";
 
-export default function createClientAdaptor<
+export const Entangled = Symbol("Entangled");
+export const Connect = Symbol("Connect");
+export const Disconnect = Symbol("Disconnect");
+
+export default function createAdaptor<
   T extends object,
-  O extends Array<keyof T> | undefined = undefined,
-  P extends Array<keyof T> | undefined = undefined
+  OmittedKeys extends Array<keyof T> | undefined = undefined,
+  PickedKeys extends Array<keyof T> | undefined = undefined
 >(
-  Adaptor: (
+  adaptorConstructor: (
     onopen: () => void,
-    onmessage: (data: Uint8Array) => void
-  ) => (data: Uint8Array) => void,
+    onmessage: (data: Uint8Array) => void,
+    ondestroy?: () => void
+  ) => Adaptor,
   options: { timeout?: number } = {}
 ) {
   let props: any = {};
@@ -42,7 +48,7 @@ export default function createClientAdaptor<
       emitter.once(uuid, listener);
       try {
         send(
-          Shuttle.serialize({
+          serialize({
             op: "call",
             name,
             uuid,
@@ -61,7 +67,7 @@ export default function createClientAdaptor<
   };
 
   const onmessage = (data: Uint8Array) => {
-    const pack = Shuttle.parse<ServerResponse>(data);
+    const pack = parse<ServerResponse>(data);
     switch (pack.op) {
       case "set": {
         const { key, value, func } = pack;
@@ -79,27 +85,37 @@ export default function createClientAdaptor<
     }
   };
 
-  const send = Adaptor(onopen, onmessage);
+  const { isEntangled, connect, disconnect, send } = adaptorConstructor(
+    onopen,
+    onmessage
+  );
 
   return new Proxy(props, {
     has: (t, p) => {
       return Reflect.has(t, p);
     },
     get: (t, p) => {
-      return Reflect.get(t, p);
+      switch (p) {
+        case Connect:
+          return connect;
+        case Disconnect:
+          return disconnect;
+        case Entangled:
+          return isEntangled();
+        default:
+          return Reflect.get(t, p);
+      }
     },
     set: (t, p, v) => {
       t[p] = v;
       if (typeof v === "function")
         throw new Error("Cannot set a function attribute to this object.");
-      send(
-        Shuttle.serialize({ op: "set", key: p, value: v } as ClientRequest<T>)
-      );
+      send(serialize({ op: "set", key: p, value: v } as ClientRequest<T>));
       return Reflect.set(t, p, v);
     },
     deleteProperty: (t, p) => {
       send(
-        Shuttle.serialize({
+        serialize({
           op: "set",
           key: p,
           value: undefined,
@@ -107,5 +123,9 @@ export default function createClientAdaptor<
       );
       return Reflect.deleteProperty(t, p);
     },
-  }) as Entangled<T, O, P>;
+  }) as EntangledObject<T, OmittedKeys, PickedKeys> & {
+    [Entangled]?: boolean;
+    [Connect]?: () => void;
+    [Disconnect]?: () => void;
+  };
 }

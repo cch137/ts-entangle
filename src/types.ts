@@ -47,6 +47,13 @@ export type ClientSetter<T extends object> = {
 
 export type ClientRequest<T extends object> = ClientCall | ClientSetter<T>;
 
+export type Adaptor = {
+  isEntangled: () => boolean;
+  connect: () => void;
+  disconnect: () => void;
+  send: (data: Uint8Array) => void;
+};
+
 export type PickKeys<
   T,
   K extends Array<keyof T> | undefined = undefined
@@ -59,8 +66,8 @@ export type OmitKeys<
   K extends Array<keyof T> | undefined = undefined
 > = K extends undefined ? T : Omit<T, K extends Array<infer U> ? U : never>;
 
-export type Entangled<
+export type EntangledObject<
   T extends object,
-  O extends Array<keyof T> | undefined = undefined,
-  P extends Array<keyof T> | undefined = undefined
-> = AsyncWrappedObject<OmitKeys<PickKeys<T, P>, O>>;
+  OmittedKeys extends Array<keyof T> | undefined = undefined,
+  PickedKeys extends Array<keyof T> | undefined = undefined
+> = AsyncWrappedObject<OmitKeys<PickKeys<T, PickedKeys>, OmittedKeys>>;
