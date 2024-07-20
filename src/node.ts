@@ -31,7 +31,7 @@ export default function createEntangle<
           else if (data instanceof ArrayBuffer) onmessage(new Uint8Array(data));
           else if (Array.isArray(data))
             onmessage(Uint8Array.from(Buffer.concat(data)));
-          else throw new Error("Invalid Type");
+          else throw new Error(`Invalid Type ${data}`);
         });
 
         ws.on("close", () => {
