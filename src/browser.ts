@@ -23,9 +23,11 @@ export default function createEntangle<
 
         ws.addEventListener("open", onopen);
 
-        ws.addEventListener("message", ({ data }) => {
+        ws.addEventListener("message", async ({ data }) => {
           if (data instanceof Uint8Array) onmessage(data);
           else if (data instanceof ArrayBuffer) onmessage(new Uint8Array(data));
+          else if (data instanceof Blob)
+            onmessage(new Uint8Array(await data.arrayBuffer()));
           else throw new Error("Invalid Type");
         });
 
