@@ -15,7 +15,8 @@ export const Disconnect = Symbol("Disconnect");
 export default function createAdaptor<
   T extends object,
   OmittedKeys extends Array<keyof T> | undefined = undefined,
-  PickedKeys extends Array<keyof T> | undefined = undefined
+  PickedKeys extends Array<keyof T> | undefined = undefined,
+  ReadonlyKeys extends Array<keyof T> | undefined = undefined
 >(
   adaptorConstructor: (
     onopen: () => void,
@@ -123,7 +124,7 @@ export default function createAdaptor<
       );
       return Reflect.deleteProperty(t, p);
     },
-  }) as EntangledObject<T, OmittedKeys, PickedKeys> & {
+  }) as EntangledObject<T, OmittedKeys, PickedKeys, ReadonlyKeys> & {
     [Entangled]?: boolean;
     [Connect]?: () => void;
     [Disconnect]?: () => void;
