@@ -2,7 +2,7 @@ import Shuttle from "@cch137/shuttle";
 import { WebSocket } from "ws";
 import type { ClientRequest, ServerResponse, ServerSetter } from "./types.js";
 
-const Handle = Symbol("Handle");
+export const Handle = Symbol("Handle");
 
 export type KeyPermission<T> = {
   key: keyof T;
