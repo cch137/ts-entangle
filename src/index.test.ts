@@ -31,6 +31,8 @@ const auth = createEntangleServer<Auth>(
   },
   {
     omittedKeys: ["count"],
+    salts: [8881],
+    md5: true,
   }
 );
 
@@ -43,7 +45,11 @@ server.on("connection", (soc) => {
 });
 
 (async () => {
-  const client = createEntangle<Auth, ["count"]>("ws://localhost:4000");
+  const client = createEntangle<Auth, ["count"]>(
+    "ws://localhost:4000",
+    void 0,
+    { salts: [8881], md5: true }
+  );
   setTimeout(async () => {
     console.log(client.appName);
     console.log(await client.login("Alex", 8));

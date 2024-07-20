@@ -12,6 +12,12 @@ export const Entangled = Symbol("Entangled");
 export const Connect = Symbol("Connect");
 export const Disconnect = Symbol("Disconnect");
 
+export type AdaptorOptions = {
+  timeout?: number;
+  salts?: number[];
+  md5?: boolean;
+};
+
 export default function createAdaptor<
   T extends object,
   OmittedKeys extends Array<keyof T> | undefined = undefined,
@@ -23,10 +29,10 @@ export default function createAdaptor<
     onmessage: (data: Uint8Array) => void,
     ondestroy?: () => void
   ) => Adaptor,
-  options: { timeout?: number } = {}
+  options: AdaptorOptions = {}
 ) {
   let props: any = {};
-  const { timeout = 10000 } = options;
+  const { timeout = 10000, ...shuttleOptions } = options;
   const emitter = new Emitter<{
     [uuid: string]: [value: ServerFunctionReturn];
   }>();
@@ -49,12 +55,15 @@ export default function createAdaptor<
       emitter.once(uuid, listener);
       try {
         send(
-          serialize({
-            op: "call",
-            name,
-            uuid,
-            args,
-          } as ClientRequest<T>)
+          serialize(
+            {
+              op: "call",
+              name,
+              uuid,
+              args,
+            } as ClientRequest<T>,
+            shuttleOptions
+          )
         );
       } catch (e) {
         reject(e);
@@ -68,7 +77,7 @@ export default function createAdaptor<
   };
 
   const onmessage = (data: Uint8Array) => {
-    const pack = parse<ServerResponse>(data);
+    const pack = parse<ServerResponse>(data, shuttleOptions);
     switch (pack.op) {
       case "set": {
         const { key, value, func } = pack;
@@ -111,16 +120,24 @@ export default function createAdaptor<
       t[p] = v;
       if (typeof v === "function")
         throw new Error("Cannot set a function attribute to this object.");
-      send(serialize({ op: "set", key: p, value: v } as ClientRequest<T>));
+      send(
+        serialize(
+          { op: "set", key: p, value: v } as ClientRequest<T>,
+          shuttleOptions
+        )
+      );
       return Reflect.set(t, p, v);
     },
     deleteProperty: (t, p) => {
       send(
-        serialize({
-          op: "set",
-          key: p,
-          value: undefined,
-        } as ClientRequest<T>)
+        serialize(
+          {
+            op: "set",
+            key: p,
+            value: undefined,
+          } as ClientRequest<T>,
+          shuttleOptions
+        )
       );
       return Reflect.deleteProperty(t, p);
     },

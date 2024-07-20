@@ -1,5 +1,6 @@
 import type { ClientRequestArgs } from "http";
 import { WebSocket, type ClientOptions } from "ws";
+import type { AdaptorOptions } from "./adaptor.js";
 import createAdaptor, { Entangled, Connect, Disconnect } from "./adaptor.js";
 import type { EntangledObject } from "./types.js";
 
@@ -10,12 +11,13 @@ export default function createEntangle<
   ReadonlyKeys extends Array<keyof T> | undefined = undefined
 >(
   address: string,
-  options?: ClientOptions | ClientRequestArgs
+  wsOptions?: ClientOptions | ClientRequestArgs,
+  options?: AdaptorOptions
 ): EntangledObject<T, OmittedKeys, PickedKeys, ReadonlyKeys> {
   return createAdaptor<T, OmittedKeys, PickedKeys, ReadonlyKeys>(
     (onopen, onmessage) => {
       const constructor = () => {
-        const ws = new WebSocket(address, options);
+        const ws = new WebSocket(address, wsOptions);
 
         ws.on("open", onopen);
 
@@ -56,7 +58,8 @@ export default function createEntangle<
         disconnect,
         isEntangled: () => entangled,
       };
-    }
+    },
+    options
   );
 }
 

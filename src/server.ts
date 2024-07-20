@@ -1,4 +1,4 @@
-import Shuttle from "@cch137/shuttle";
+import { parse, serialize } from "@cch137/shuttle";
 import { WebSocket } from "ws";
 import type { ClientRequest, ServerResponse, ServerSetter } from "./types.js";
 
@@ -11,6 +11,8 @@ export type KeyPermission<T> = {
 };
 
 export type EntangleServerOptions<T extends object> = {
+  salts?: number[];
+  md5?: boolean;
   pickedKeys?: (keyof T)[];
   omittedKeys?: (keyof T)[];
   readonlyKeys?: (keyof T)[];
@@ -29,6 +31,8 @@ export default function createEntangleServer<T extends object>(
 
   const isReadable = (key: keyof T) => readables.get(key) ?? true;
   const isWritable = (key: keyof T) => readables.get(key) ?? true;
+
+  const shuttleOptions = { salts: options?.salts, md5: options?.md5 };
 
   {
     const {
@@ -80,7 +84,7 @@ export default function createEntangleServer<T extends object>(
     }
 
     send(response: ServerResponse) {
-      this.socket.send(Shuttle.serialize(response));
+      this.socket.send(serialize(response, shuttleOptions));
     }
 
     sync(key: keyof T, clear = false) {
@@ -124,10 +128,11 @@ export default function createEntangleServer<T extends object>(
     soc.on("message", async (data) => {
       if (Array.isArray(data)) data = Buffer.concat(data);
 
-      const pack = Shuttle.parse<ClientRequest<T>>(
+      const pack = parse<ClientRequest<T>>(
         data instanceof ArrayBuffer
           ? new Uint8Array(data)
-          : Uint8Array.from(data)
+          : Uint8Array.from(data),
+        shuttleOptions
       );
 
       switch (pack.op) {
