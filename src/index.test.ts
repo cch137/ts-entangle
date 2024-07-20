@@ -29,7 +29,9 @@ const auth = createEntangleServer<Auth>(
       throw new Error("Always Error");
     },
   },
-  { omit: ["count"] }
+  {
+    omittedKeys: ["count"],
+  }
 );
 
 server.on("connection", (soc) => {
@@ -47,10 +49,10 @@ server.on("connection", (soc) => {
     console.log(await client.login("Alex", 8));
   }, 100);
   setTimeout(async () => {
-    auth.appName = "X";
+    client.appName = "X";
   }, 200);
   setTimeout(async () => {
-    console.log(client.appName);
+    console.log(client.appName, auth.appName);
   }, 300);
   setTimeout(async () => {
     client.appName = "Threads";

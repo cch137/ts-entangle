@@ -57,17 +57,32 @@ export type Adaptor = {
 export type PickKeys<
   T,
   K extends Array<keyof T> | undefined = undefined
-> = K extends undefined
-  ? T
-  : Pick<T, K extends Array<infer U> ? Extract<keyof T, U> : never>;
+> = K extends undefined ? T : Pick<T, K extends Array<infer U> ? U : never>;
 
 export type OmitKeys<
   T,
   K extends Array<keyof T> | undefined = undefined
 > = K extends undefined ? T : Omit<T, K extends Array<infer U> ? U : never>;
 
+export type FreezeKeys<
+  T,
+  K extends Array<keyof T> | undefined = undefined
+> = K extends undefined
+  ? T
+  : {
+      readonly [P in Extract<
+        keyof T,
+        K extends Array<infer U> ? U : never
+      >]: T[P];
+    } & {
+      [P in Exclude<keyof T, K extends Array<infer U> ? U : never>]: T[P];
+    };
+
 export type EntangledObject<
   T extends object,
   OmittedKeys extends Array<keyof T> | undefined = undefined,
-  PickedKeys extends Array<keyof T> | undefined = undefined
-> = AsyncWrappedObject<OmitKeys<PickKeys<T, PickedKeys>, OmittedKeys>>;
+  PickedKeys extends Array<keyof T> | undefined = undefined,
+  ReadonlyKeys extends Array<keyof T> | undefined = undefined
+> = AsyncWrappedObject<
+  OmitKeys<PickKeys<FreezeKeys<T, ReadonlyKeys>, PickedKeys>, OmittedKeys>
+>;

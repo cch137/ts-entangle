@@ -1,47 +1,125 @@
 import Shuttle from "@cch137/shuttle";
 import { WebSocket } from "ws";
-import type {
-  ClientRequest,
-  ServerFunctionReturn,
-  ServerResponse,
-  ServerSetter,
-} from "./types.js";
-
-function sendResponse(socket: WebSocket, response: ServerResponse) {
-  socket.send(Shuttle.serialize(response));
-}
+import type { ClientRequest, ServerResponse, ServerSetter } from "./types.js";
 
 const Handle = Symbol("Handle");
 
+export type KeyPermission<T> = {
+  key: keyof T;
+  readable?: boolean;
+  writable?: boolean;
+};
+
+export type EntangleServerOptions<T extends object> = {
+  pickedKeys?: (keyof T | string)[];
+  omittedKeys?: (keyof T | string)[];
+  readonlyKeys?: (keyof T | string)[];
+  clientReadonly?: boolean;
+  permissions?: KeyPermission<T>[];
+};
+
 export default function createEntangleServer<T extends object>(
   target: T,
-  options: { pick?: (keyof T)[]; omit?: (keyof T)[] } = {}
+  options: EntangleServerOptions<T> = {}
 ) {
-  const sockets = new Set<WebSocket>();
-  const { pick, omit } = options;
+  const clients = new Set<Client>();
 
-  const isKey = (key: keyof T) => {
-    if (omit && omit.includes(key)) return false;
-    if (pick && !pick.includes(key)) return false;
-    return true;
-  };
+  const readables = new Map<keyof T | string, boolean>();
+  const writables = new Map<keyof T | string, boolean>();
 
-  function handleSocket(soc: WebSocket) {
-    sockets.add(soc);
+  const isReadable = (key: keyof T | string) => readables.get(key) ?? true;
+  const isWritable = (key: keyof T | string) => readables.get(key) ?? true;
 
-    for (const key in target) {
-      if (!isKey(key)) continue;
+  {
+    const {
+      pickedKeys,
+      omittedKeys,
+      readonlyKeys = [],
+      clientReadonly = false,
+      permissions,
+    } = options;
 
+    const keys = (Object.getOwnPropertyNames(target) as (keyof T | string)[])
+      .concat(pickedKeys || [], omittedKeys || [], readonlyKeys)
+      .reduce((prev, curr) => {
+        if (!prev.includes(curr)) prev.push(curr);
+        return prev;
+      }, [] as (keyof T | string)[]);
+
+    for (const key of keys) {
+      if (
+        (omittedKeys && omittedKeys.includes(key)) ||
+        (pickedKeys && !pickedKeys.includes(key))
+      ) {
+        readables.set(key, false);
+        writables.set(key, false);
+        continue;
+      }
+      const permission = permissions?.find((i) => i.key === key);
+      if (!permission) {
+        readables.set(key, true);
+        writables.set(key, !clientReadonly && true);
+        continue;
+      }
+      const { readable, writable } = permission;
+      readables.set(key, readable ?? true);
+      writables.set(
+        key,
+        clientReadonly || readonlyKeys.includes(key)
+          ? false
+          : writable ?? readable ?? true
+      );
+    }
+  }
+
+  class Client {
+    readonly socket: WebSocket;
+
+    constructor(socket: WebSocket) {
+      this.socket = socket;
+    }
+
+    send(response: ServerResponse) {
+      this.socket.send(Shuttle.serialize(response));
+    }
+
+    sync(key: keyof T, clear = false) {
+      if (!isWritable(key)) {
+        if (!clear) return;
+        this.send({
+          op: "set",
+          key: String(key),
+          value: undefined,
+          func: false,
+        });
+        return;
+      }
       const value = target[key];
       const func = typeof value === "function";
-      if (func)
-        sendResponse(soc, {
+      if (func) {
+        this.send({
           op: "set",
-          key,
+          key: String(key),
           value: undefined,
           func,
-        } as ServerSetter);
-      else sendResponse(soc, { op: "set", key, value, func } as ServerSetter);
+        });
+      } else {
+        this.send({
+          op: "set",
+          key: String(key),
+          value,
+          func,
+        });
+      }
+    }
+  }
+
+  function handleSocket(soc: WebSocket) {
+    const client = new Client(soc);
+    clients.add(client);
+
+    for (const key in target) {
+      client.sync(key);
     }
 
     soc.on("message", async (data) => {
@@ -56,36 +134,23 @@ export default function createEntangleServer<T extends object>(
       switch (pack.op) {
         case "set": {
           const { key, value } = pack;
-          if (!isKey(key)) break;
-          Reflect.set(target, key, value);
-          sendResponse(soc, {
-            op: "set",
-            func: false,
-            key: String(key),
-            value,
-          } as ServerSetter);
+          if (isWritable(key)) proxy[key] = value;
+          else client.sync(key, true);
           break;
         }
         case "call": {
           const { uuid, name, args } = pack;
           const func = (target as any)[name];
-          if (typeof func !== "function") {
-            sendResponse(soc, {
-              op: "return",
-              uuid,
-              error: true,
-              message: `"${name}" is not a function`,
-            } as ServerFunctionReturn);
-            break;
-          }
           try {
-            sendResponse(soc, {
+            if (typeof func !== "function" || !isReadable(name as keyof T))
+              throw new Error(`"${name}" is not a function`);
+            client.send({
               op: "return",
               uuid,
               value: await func(...args),
             });
           } catch (e) {
-            sendResponse(soc, {
+            client.send({
               op: "return",
               uuid,
               error: true,
@@ -99,11 +164,11 @@ export default function createEntangleServer<T extends object>(
     });
 
     soc.on("close", () => {
-      sockets.delete(soc);
+      clients.delete(client);
     });
   }
 
-  return new Proxy(target, {
+  const proxy = new Proxy(target, {
     get(t, p) {
       if (p === Handle) return handleSocket;
       return Reflect.get(t, p);
@@ -114,17 +179,18 @@ export default function createEntangleServer<T extends object>(
       } catch {
         return false;
       } finally {
-        if (isKey(p as keyof T)) {
+        if (isReadable(p as keyof T)) {
+          const value = Reflect.get(t, p);
           const pack: ServerSetter =
-            typeof v === "function"
+            typeof value === "function"
               ? { op: "set", func: true, key: String(p), value: undefined }
               : {
                   op: "set",
                   func: false,
                   key: String(p),
-                  value: Reflect.get(t, p),
+                  value,
                 };
-          sockets.forEach((soc) => sendResponse(soc, pack));
+          clients.forEach((c) => c.send(pack));
         }
       }
     },
@@ -134,18 +200,20 @@ export default function createEntangleServer<T extends object>(
       } catch {
         return false;
       } finally {
-        if (isKey(p as keyof T)) {
+        if (isReadable(p as keyof T)) {
           const pack: ServerSetter = {
             op: "set",
             func: false,
             key: String(p),
             value: Reflect.get(t, p),
           };
-          sockets.forEach((soc) => sendResponse(soc, pack));
+          clients.forEach((c) => c.send(pack));
         }
       }
     },
   }) as any as T & { [Handle](soc: WebSocket): void };
+
+  return proxy;
 }
 
 createEntangleServer.Handle = Handle;
