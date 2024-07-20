@@ -28,7 +28,7 @@ export type EntangledClient<
   [Entangled]?: boolean;
   [Connect]?: () => void;
   [Disconnect]?: () => void;
-  [OnReady]?: Set<() => void>;
+  [OnReady]: Set<() => void>;
 };
 
 export default function createAdaptor<
