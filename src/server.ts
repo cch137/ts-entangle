@@ -118,6 +118,7 @@ export default function createEntangleServer<T extends object>(
     const client = new Client(soc);
     clients.add(client);
 
+    for (const key in target) if (!readables.has(key)) client.sync(key);
     readables.forEach((_, key) => client.sync(key));
 
     soc.on("message", async (data) => {
