@@ -42,5 +42,7 @@ export default function createEntangle<
   );
 }
 
+export { Adaptor, Ready };
+
 createEntangle.Adaptor = Adaptor;
 createEntangle.Ready = Ready;

@@ -83,6 +83,8 @@ export default function createEntangleBase<
   PickedKeys extends Array<keyof T> | undefined = undefined,
   ReadonlyKeys extends Array<keyof T> | undefined = undefined
 >(builder: SocketBuilder, options: EntangleOptions = {}) {
+  type Entangled = EntangledClient<T, OmittedKeys, PickedKeys, ReadonlyKeys>;
+
   let props: any = {};
   const { timeout = 10000, ...shuttleOptions } = options;
   const adaptor = new EntangleAdaptor(builder);
@@ -172,15 +174,20 @@ export default function createEntangleBase<
         case Adaptor:
           return adaptor;
         case Ready:
-          return () => {
-            return new Promise((resolve, reject) => {
-              if (adaptor.ready) return resolve(proxy);
+          return (cb?: (t: Entangled) => void) => {
+            return new Promise<Entangled>((resolve, reject) => {
+              if (adaptor.ready) {
+                if (cb) cb(proxy);
+                resolve(proxy);
+                return;
+              }
               const tout = setTimeout(
                 () => reject(new Error("Timeout")),
                 timeout
               );
               adaptor.once("ready", () => {
                 clearTimeout(tout);
+                if (cb) cb(proxy);
                 resolve(proxy);
               });
             });
@@ -214,7 +221,7 @@ export default function createEntangleBase<
       );
       return Reflect.deleteProperty(t, p);
     },
-  }) as EntangledClient<T, OmittedKeys, PickedKeys, ReadonlyKeys>;
+  }) as Entangled;
 
   return proxy;
 }
