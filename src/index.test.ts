@@ -1,5 +1,5 @@
 import { WebSocketServer } from "ws";
-import createEntangleServer from "./server.js";
+import createEntangleServer, { Handle } from "./server.js";
 import createEntangle from "./node.js";
 
 const server = new WebSocketServer({ port: 4000 });
@@ -37,7 +37,7 @@ const auth = createEntangleServer<Auth>(
 );
 
 server.on("connection", (soc) => {
-  auth[createEntangleServer.Handle](soc);
+  auth[Handle](soc);
   setTimeout(() => {
     soc.close();
     auth.appName = "Reddit";
