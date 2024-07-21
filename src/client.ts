@@ -72,10 +72,11 @@ export class EntangleAdaptor extends Emitter<
 }
 
 export type EntangleOptions = {
-  pending?: boolean;
   timeout?: number;
   salts?: number[];
   md5?: boolean;
+  pending?: boolean;
+  cached?: boolean;
 };
 
 export type EntangledClient<
@@ -99,8 +100,13 @@ export default function createEntangleClient<
   type Entangled = EntangledClient<T, OmittedKeys, PickedKeys, ReadonlyKeys>;
 
   let props: any = {};
-  const { timeout = 10000, pending = false, ...shuttleOptions } = options;
-  const adaptor = new EntangleAdaptor(builder, { active: !pending });
+  const {
+    timeout = 10000,
+    pending = false,
+    cached = true,
+    ...shuttleOptions
+  } = options;
+  const adaptor = new EntangleAdaptor(builder, { active: !pending, cached });
 
   const callFunction = (name: string, args: any[]) =>
     new Promise((resolve, reject) => {
