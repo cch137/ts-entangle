@@ -29,17 +29,22 @@ export class EntangleAdaptor extends Emitter<
     [uuid: UUID]: [value: ServerFunctionReturn];
   }
 > {
-  entangled = true;
+  entangled: boolean;
   connected = false;
   ready = false;
-  websocket: WebSocketLike;
+  websocket?: WebSocketLike;
 
   builder: SocketBuilder;
 
-  constructor(builder: SocketBuilder) {
+  constructor(builder: SocketBuilder, options?: { active?: boolean });
+  constructor(
+    builder: SocketBuilder,
+    { active = true }: { active?: boolean } = {}
+  ) {
     super();
     this.builder = builder;
-    this.websocket = builder(this);
+    if (active) this.websocket = builder(this);
+    this.entangled = active;
   }
 
   connect() {
@@ -51,15 +56,16 @@ export class EntangleAdaptor extends Emitter<
   disconnect() {
     if (!this.entangled) return;
     this.entangled = false;
-    this.websocket.close();
+    this.websocket?.close();
   }
 
   send(data: Uint8Array) {
-    this.websocket.send(data);
+    this.websocket?.send(data);
   }
 }
 
 export type EntangleOptions = {
+  pending?: boolean;
   timeout?: number;
   salts?: number[];
   md5?: boolean;
@@ -86,8 +92,8 @@ export default function createEntangleClient<
   type Entangled = EntangledClient<T, OmittedKeys, PickedKeys, ReadonlyKeys>;
 
   let props: any = {};
-  const { timeout = 10000, ...shuttleOptions } = options;
-  const adaptor = new EntangleAdaptor(builder);
+  const { timeout = 10000, pending = false, ...shuttleOptions } = options;
+  const adaptor = new EntangleAdaptor(builder, { active: !pending });
 
   const callFunction = (name: string, args: any[]) =>
     new Promise((resolve, reject) => {
