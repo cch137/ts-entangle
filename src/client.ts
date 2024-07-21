@@ -77,7 +77,7 @@ export type EntangledClient<
   >;
 };
 
-export default function createEntangleBase<
+export default function createEntangleClient<
   T extends object,
   OmittedKeys extends Array<keyof T> | undefined = undefined,
   PickedKeys extends Array<keyof T> | undefined = undefined,
@@ -226,5 +226,5 @@ export default function createEntangleBase<
   return proxy;
 }
 
-createEntangleBase.Adaptor = Adaptor;
-createEntangleBase.Ready = Ready;
+createEntangleClient.Adaptor = Adaptor;
+createEntangleClient.Ready = Ready;

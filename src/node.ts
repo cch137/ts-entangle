@@ -1,7 +1,7 @@
 import type { ClientRequestArgs } from "http";
 import { WebSocket, type ClientOptions } from "ws";
 import type { EntangleOptions, EntangledClient } from "./client.js";
-import createEntangleBase, { Adaptor, Ready } from "./client.js";
+import createEntangleClient, { Adaptor, Ready } from "./client.js";
 
 export default function createEntangle<
   T extends object,
@@ -13,7 +13,7 @@ export default function createEntangle<
   wsOptions?: ClientOptions | ClientRequestArgs,
   options?: EntangleOptions
 ): EntangledClient<T, OmittedKeys, PickedKeys, ReadonlyKeys> {
-  return createEntangleBase<T, OmittedKeys, PickedKeys, ReadonlyKeys>(
+  return createEntangleClient<T, OmittedKeys, PickedKeys, ReadonlyKeys>(
     (emitter) => {
       const ws = new WebSocket(address, wsOptions);
 
