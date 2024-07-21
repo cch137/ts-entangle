@@ -127,12 +127,12 @@ export default function createEntangleServer<T extends object>(
     client.send({ op: "ready" });
 
     soc.on("message", async (data) => {
-      if (Array.isArray(data)) data = Buffer.concat(data);
-
       const pack = parse<ClientRequest<T>>(
         data instanceof ArrayBuffer
           ? new Uint8Array(data)
-          : Uint8Array.from(data),
+          : data instanceof Buffer
+          ? Uint8Array.from(data)
+          : Uint8Array.from(Buffer.concat(data.map((i) => Uint8Array.from(i)))),
         shuttleOptions
       );
 
