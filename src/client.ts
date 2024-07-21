@@ -57,16 +57,14 @@ export class EntangleAdaptor extends Emitter<
 
   connect() {
     this.active = true;
-    if (this.connected) return;
-    try {
-      this.websocket?.close();
-    } catch {}
+    if (this.websocket) return;
     this.websocket = this.builder(this);
   }
 
   disconnect() {
     this.active = false;
     this.websocket?.close();
+    this.websocket = undefined;
   }
 
   send(data: Uint8Array) {
@@ -179,10 +177,11 @@ export default function createEntangleClient<
   });
 
   adaptor.on("disconnect", () => {
+    adaptor.websocket = undefined;
     adaptor.connected = false;
     adaptor.ready = false;
     if (adaptor.active) {
-      adaptor.websocket = adaptor.builder(adaptor);
+      adaptor.connect();
     } else if (!adaptor.cached) {
       for (const key in props) Reflect.deleteProperty(props, key);
     }
