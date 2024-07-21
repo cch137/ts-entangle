@@ -29,33 +29,40 @@ export class EntangleAdaptor extends Emitter<
     [uuid: UUID]: [value: ServerFunctionReturn];
   }
 > {
-  entangled: boolean;
+  websocket?: WebSocketLike;
+
+  // controlled by methods
+  active: boolean;
+
+  // Controlled by external listeners
   connected = false;
   ready = false;
-  websocket?: WebSocketLike;
+
+  // option: keep properties after disconnected
+  cached: boolean;
 
   builder: SocketBuilder;
 
-  constructor(builder: SocketBuilder, options?: { active?: boolean });
   constructor(
     builder: SocketBuilder,
-    { active = true }: { active?: boolean } = {}
-  ) {
+    options?: { active?: boolean; cached?: boolean }
+  );
+  constructor(builder: SocketBuilder, { active = true, cached = true } = {}) {
     super();
     this.builder = builder;
+    this.active = active;
+    this.cached = cached;
     if (active) this.websocket = builder(this);
-    this.entangled = active;
   }
 
   connect() {
-    if (this.entangled) return;
-    this.entangled = true;
+    this.active = true;
+    if (this.connected) return;
     this.websocket = this.builder(this);
   }
 
   disconnect() {
-    if (!this.entangled) return;
-    this.entangled = false;
+    this.active = false;
     this.websocket?.close();
   }
 
@@ -132,7 +139,6 @@ export default function createEntangleClient<
 
   adaptor.on("connect", () => {
     adaptor.connected = true;
-    for (const key in props) Reflect.deleteProperty(props, key);
   });
 
   adaptor.on("ready", () => {
@@ -166,7 +172,11 @@ export default function createEntangleClient<
   adaptor.on("disconnect", () => {
     adaptor.connected = false;
     adaptor.ready = false;
-    if (adaptor.entangled) adaptor.websocket = adaptor.builder(adaptor);
+    if (adaptor.active) {
+      adaptor.websocket = adaptor.builder(adaptor);
+    } else if (!adaptor.cached) {
+      for (const key in props) Reflect.deleteProperty(props, key);
+    }
   });
 
   const onreadyCallbacks = new Set<() => void>();
