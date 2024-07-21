@@ -58,6 +58,9 @@ export class EntangleAdaptor extends Emitter<
   connect() {
     this.active = true;
     if (this.connected) return;
+    try {
+      this.websocket?.close();
+    } catch {}
     this.websocket = this.builder(this);
   }
 
