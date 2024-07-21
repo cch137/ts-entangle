@@ -1,5 +1,5 @@
-import type { EntangleOptions, EntangledClient } from "./adaptor.js";
-import createEntangleBase, { Adaptor, Ready } from "./adaptor.js";
+import type { EntangleOptions, EntangledClient } from "./client.js";
+import createEntangleBase, { Adaptor, Ready } from "./client.js";
 
 export default function createEntangle<
   T extends object,
