@@ -28,7 +28,9 @@ export default function createEntangle<
             : rawData instanceof ArrayBuffer
             ? new Uint8Array(rawData)
             : Array.isArray(rawData)
-            ? Uint8Array.from(Buffer.concat(rawData))
+            ? Uint8Array.from(
+                Buffer.concat(rawData.map((i) => Uint8Array.from(i)))
+              )
             : null;
         if (data === null) throw new Error(`Invalid Type ${rawData}`);
         emitter.emit("message", data);
