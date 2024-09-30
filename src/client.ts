@@ -39,13 +39,12 @@ export class EntangleAdaptor extends Emitter<
   constructor(
     builder: SocketBuilder,
     options?: { active?: boolean; cached?: boolean }
-  );
-  constructor(builder: SocketBuilder, { active = true, cached = true } = {}) {
+  ) {
     super();
     this.builder = builder;
-    this.active = active;
-    this.cached = cached;
-    if (active) this.websocket = builder(this);
+    this.active = options?.active ?? true;
+    this.cached = options?.cached ?? true;
+    if (this.active) this.websocket = builder(this);
 
     // auto reconnect
     this.on("disconnect", () => {
@@ -59,8 +58,7 @@ export class EntangleAdaptor extends Emitter<
 
   connect() {
     this.active = true;
-    if (this.websocket) return;
-    this.websocket = this.builder(this);
+    if (!this.websocket) this.websocket = this.builder(this);
   }
 
   disconnect() {
@@ -73,7 +71,7 @@ export class EntangleAdaptor extends Emitter<
     if (this.websocket.readyState !== this.websocket.OPEN) {
       this.once("connect", () => this.send(data));
     } else {
-      this.websocket?.send(data);
+      this.websocket.send(data);
     }
   }
 }
@@ -94,23 +92,22 @@ class Service<T extends object = any> extends Emitter<{
     client: Client,
     serviceId: string,
     options?: { timeout?: number }
-  );
-
-  constructor(client: Client, serviceId: string, { timeout = 10000 } = {}) {
+  ) {
     super();
     this.id = serviceId;
     this.client = client;
+    this.timeout = options?.timeout ?? 10000;
     this.target = new Proxy(this._original, {
-      set(t, p, v) {
+      set: (t, p, v) => {
         client.send({ o: "W", s: serviceId, k: String(p), v });
         return true;
       },
-      deleteProperty(t, p) {
+      deleteProperty: (t, p) => {
         client.send({ o: "D", s: serviceId, k: String(p) });
         return true;
       },
     }) as AsyncWrappedObject<T>;
-    this.timeout = timeout;
+
     const ws = this.client.adaptor.websocket;
     if (ws && ws.readyState === ws.OPEN)
       this.client.send({ o: "S", s: serviceId });
@@ -203,7 +200,7 @@ export default class Client {
     });
 
     adaptor.on("connect", () => {
-      this.services.forEach((v, serviceId) => {
+      this.services.forEach((_, serviceId) => {
         this.send({ o: "S", s: serviceId });
       });
     });

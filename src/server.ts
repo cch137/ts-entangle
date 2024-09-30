@@ -19,16 +19,17 @@ class Client {
 
     socket.on("close", () => {
       this.services.forEach((s) => s.clients.delete(this));
-      this.services.splice(0);
+      this.services.length = 0;
       this.server.clients.delete(this);
     });
 
     socket.on("message", async (rawData) => {
-      const data = Array.isArray(rawData)
-        ? Buffer.concat(rawData.map((i) => Uint8Array.from(i)))
-        : rawData instanceof Buffer
-        ? Uint8Array.from(rawData)
-        : new Uint8Array(rawData);
+      const data =
+        rawData instanceof Buffer
+          ? new Uint8Array(rawData)
+          : Array.isArray(rawData)
+          ? Buffer.concat(rawData.map((i) => Uint8Array.from(i)))
+          : new Uint8Array(rawData);
 
       const req = parse<EntangleRequest>(data, this.server.shuttleOptions);
       const { s: serviceId, o: operation } = req;
@@ -96,82 +97,46 @@ class Client {
     });
   }
 
-  subscribe(serviceId: string): Service | undefined;
-  subscribe(service: Service): Service | undefined;
-  subscribe(serviceId: string | Service) {
-    if (typeof serviceId !== "string") {
-      for (const [sid, service] of this.server.services) {
-        if (service === serviceId) return this.subscribe(sid);
-      }
-      return;
-    }
-
+  subscribe(serviceId: string) {
     const service = this.server.services.get(serviceId);
-    if (!service) return service;
+    if (!service) return;
 
     service.clients.add(this);
-
-    if (service instanceof Server) return service;
-
     if (!this.services.includes(service)) this.services.push(service);
 
     const keys = getAllKeys(service.target);
-    for (const key of keys) {
-      if (typeof key !== "string") continue;
-      this.syncKey(service, serviceId, key);
-    }
-
-    this.send({
-      s: serviceId,
-      o: "Y",
+    keys.forEach((key) => {
+      if (typeof key === "string") this.syncKey(service, serviceId, key);
     });
 
-    return service;
+    this.send({ s: serviceId, o: "Y" });
   }
 
-  unsubscribe(serviceId: string): Service | undefined;
-  unsubscribe(service: Service): Service | undefined;
-  unsubscribe(service: string | Service) {
-    if (typeof service === "string") {
-      const service1 = this.server.services.get(service);
-      if (service1) return this.unsubscribe(service1);
-      return service1;
+  unsubscribe(serviceId: string) {
+    const service = this.server.services.get(serviceId);
+    if (service) {
+      service.clients.delete(this);
+      const index = this.services.indexOf(service);
+      if (index !== -1) this.services.splice(index, 1);
     }
-
-    service.clients.delete(this);
-    const index = this.services.indexOf(service);
-    if (index !== -1) this.services.splice(index, 1);
-
-    return service;
   }
 
-  syncKey(service: Service, serviceId: string, key: string, i?: string) {
+  private syncKey(
+    service: Service,
+    serviceId: string,
+    key: string,
+    i?: string
+  ) {
     const { target } = service;
     if (key in target) {
       const value = (target as any)[key];
       if (typeof value === "function") {
-        this.send({
-          s: serviceId,
-          o: "F",
-          k: key,
-          i,
-        });
+        this.send({ s: serviceId, o: "F", k: key, i });
       } else {
-        this.send({
-          s: serviceId,
-          o: "W",
-          k: key,
-          v: value,
-          i,
-        });
+        this.send({ s: serviceId, o: "W", k: key, v: value, i });
       }
     } else {
-      this.send({
-        s: serviceId,
-        o: "D",
-        k: key,
-        i,
-      });
+      this.send({ s: serviceId, o: "D", k: key, i });
     }
   }
 
@@ -189,16 +154,16 @@ export class Service {
   }
 
   broadcast(res: EntangleResponse) {
-    this.clients.forEach(async (c) => {
+    this.clients.forEach((client) => {
       try {
-        c.send(res);
+        client.send(res);
       } catch (e) {
-        c.send({
+        client.send({
           s: res.s,
           o: "E",
           m: e instanceof Error ? `${e.name}: ${e.message}` : String(e),
         });
-        c.socket.close();
+        client.socket.close();
       }
     });
   }
@@ -225,50 +190,40 @@ export default class Server extends Service {
     compute?: (original: T) => T | Partial<T>
   ) {
     const proxy = new Proxy(original, {
-      set: (t, p, v) => {
-        const r = Reflect.set(t, p, v);
-        if (!(p in target)) return r;
-        const value = (target as any)[p];
-        if (typeof value === "function") {
-          service.broadcast({
+      set: (target, property, value) => {
+        const result = Reflect.set(target, property, value);
+        if (property in target) {
+          const resValue = (target as any)[property];
+          this.services.get(id)?.broadcast({
             s: id,
-            o: "F",
-            k: String(p),
-          });
-        } else {
-          service.broadcast({
-            s: id,
-            o: "W",
-            k: String(p),
-            v: value,
+            o: typeof resValue === "function" ? "F" : "W",
+            k: String(property),
+            v: resValue,
           });
         }
-        return r;
+        return result;
       },
-      deleteProperty: (t, p) => {
-        const isKey = p in target;
-        const r = Reflect.deleteProperty(t, p);
-        if (isKey) {
-          service.broadcast({
+      deleteProperty: (target, property) => {
+        const exists = property in target;
+        const result = Reflect.deleteProperty(target, property);
+        if (exists) {
+          this.services.get(id)?.broadcast({
             s: id,
             o: "D",
-            k: String(p),
+            k: String(property),
           });
         }
-        return r;
+        return result;
       },
     });
 
     const target = compute ? compute(proxy) : proxy;
     const service = new Service(target);
     this.services.set(id, service);
-
     return proxy;
   }
 
   unregister(id: string) {
-    const service = this.services.get(id);
-    this.services.delete(id);
-    return service;
+    return this.services.delete(id);
   }
 }
