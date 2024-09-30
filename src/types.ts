@@ -1,4 +1,4 @@
-export type UUID = `${string}-${string}-${string}-${string}-${string}`;
+import type { OmitKeys, PickKeys } from "@cch137/xbject";
 
 export type AsyncFunctionWrapper<T extends Function> = T extends (
   ...args: infer A
@@ -12,56 +12,91 @@ export type AsyncWrappedObject<T extends object> = {
   [K in keyof T]: T[K] extends Function ? AsyncFunctionWrapper<T[K]> : T[K];
 };
 
-export type ServerReady = {
-  op: "ready";
+export type ShuttleOptions = {
+  salts?: number[];
+  md5?: boolean;
 };
 
-export type ServerSetter = {
-  op: "set";
-  key: string;
-  func: boolean;
-  value: any;
-};
-
-export type ServerFunctionReturn =
+/**
+ * `k` key is the path to the value, \
+ * eg1. `obj.name` -> k: `"name"` or `["name"]` \
+ * eg2. `obj.person.cars[3]` -> k: `["person", "cars", "3"]`
+ */
+export type EntangleRequest =
   | {
-      op: "return";
-      uuid: UUID;
-      value: any;
+      s: string; // service id
+      o: "S"; // operation: subscribe
     }
   | {
-      op: "return";
-      uuid: UUID;
-      error: true;
-      message: string;
+      s: string; // service id
+      o: "U"; // operation: unsubscribe
+    }
+  | {
+      s: string; // service id
+      o: "R"; // operation: read
+      k: string; // key
+      i?: string; // call id (a random id)
+    }
+  | {
+      s: string; // service id
+      o: "W"; // operation: write
+      k: string; // key
+      v: any; // value
+    }
+  | {
+      s: string; // service id
+      o: "D"; // operation: delete
+      k: string; // key
+    }
+  | {
+      s: string; // service id
+      o: "C"; // operation: call function
+      i: string; // call id (a random id)
+      k: string; // key
+      a?: any[]; // arguments
     };
 
-export type ServerResponse = ServerReady | ServerSetter | ServerFunctionReturn;
-
-export type ClientCall = {
-  op: "call";
-  uuid: UUID;
-  name: string;
-  args: any[];
-};
-
-export type ClientSetter<T extends object> = {
-  op: "set";
-  key: keyof T;
-  value: any;
-};
-
-export type ClientRequest<T extends object> = ClientCall | ClientSetter<T>;
-
-export type PickKeys<
-  T,
-  K extends Array<keyof T> | undefined = undefined
-> = K extends undefined ? T : Pick<T, K extends Array<infer U> ? U : never>;
-
-export type OmitKeys<
-  T,
-  K extends Array<keyof T> | undefined = undefined
-> = K extends undefined ? T : Omit<T, K extends Array<infer U> ? U : never>;
+export type EntangleResponse =
+  | {
+      s: string; // service id
+      o: "W"; // operation: write
+      k: string; // key
+      v: any; // value
+      i?: string; // call id (a random id)
+    }
+  | {
+      s: string; // service id
+      o: "F"; // operation: assign function
+      k: string; // key
+      i?: string; // call id (a random id)
+    }
+  | {
+      s: string; // service id
+      o: "D"; // operation: delete
+      k: string; // key
+      i?: string; // call id (a random id)
+    }
+  | {
+      s: string; // service id
+      o: "Y"; // operation: ready
+    }
+  | {
+      s: string; // service id
+      o: "C"; // operation: called result
+      i: string; // call id (a random id)
+      e: string; // error message
+    }
+  | {
+      s: string; // service id
+      o: "C"; // operation: called result
+      i: string; // call id (a random id)
+      v: any; // return value
+    }
+  | {
+      s: string; // service id
+      o: "E"; // operation: error
+      m: string; // message
+    };
 
 export type FreezeKeys<
   T,

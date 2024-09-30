@@ -1,82 +1,52 @@
 import { WebSocketServer } from "ws";
-import createEntangleServer, { Handle } from "./server.js";
+import Server from "./server.js";
 import createEntangle from "./node.js";
+import { omit, OmitKeys, pick } from "@cch137/xbject";
 
 const server = new WebSocketServer({ port: 4000 });
 
-type Auth = {
-  appName: string;
-  count: number;
-  login(
-    name: string,
-    pass: number
-  ): Promise<{
-    success: boolean;
-    name: string;
-    pass: number;
-  }>;
-  throwing(): Promise<never>;
+type ServerData = {
+  persons: { name: string; age: number }[];
+  luckyNumber: number;
+  adminKey: string;
+  sayHi(): void;
 };
 
-const auth = createEntangleServer<Auth>(
-  {
-    appName: "Twitter",
-    count: 123,
-    async login(name: string, pass: number) {
-      return { success: true, name, pass };
-    },
-    async throwing() {
-      throw new Error("Always Error");
-    },
+const serverData: ServerData = {
+  persons: [
+    { name: "Alice", age: 30 },
+    { name: "Bob", age: 25 },
+    { name: "Charlie", age: 35 },
+  ],
+  luckyNumber: 7,
+  adminKey: "12345678",
+  sayHi() {
+    console.log("Server say: Hi");
+    return { ok: true };
   },
-  {
-    omittedKeys: ["count"],
-    salts: [8881],
-    md5: true,
-  }
-);
+};
+
+const eServer = new Server({
+  salts: [8881],
+  md5: true,
+});
+
+eServer.register("data1", serverData, () => omit(serverData, ["adminKey"]));
 
 server.on("connection", (soc) => {
-  auth[Handle](soc);
-  setTimeout(() => {
-    soc.close();
-    auth.appName = "Reddit";
-  }, 700);
+  eServer.handle(soc);
 });
 
 (async () => {
-  const client = createEntangle<Auth, ["count"]>(
-    "ws://localhost:4000",
-    void 0,
-    { salts: [8881], md5: true }
-  );
-  setTimeout(async () => {
-    console.log(client.appName);
-    console.log(await client.login("Alex", 8));
-  }, 100);
-  setTimeout(async () => {
-    client.appName = "X";
-  }, 200);
-  setTimeout(async () => {
-    console.log(client.appName, auth.appName);
-  }, 300);
-  setTimeout(async () => {
-    client.appName = "Threads";
-  }, 400);
-  setTimeout(async () => {
-    console.log(auth.appName);
-    auth.login = async (name: string, pass: number) => ({
-      success: false,
-      name,
-      pass,
-    });
-  }, 500);
-  setTimeout(async () => {
-    console.log(await client.login("Bob", 9));
-    console.log(client.login.toString());
-  }, 600);
-  setTimeout(async () => {
-    console.log(await client.login("Jack", 12));
-    console.log(client);
-  }, 800);
+  const eClient = createEntangle("ws://localhost:4000", void 0, {
+    salts: [8881],
+    md5: true,
+  });
+  eClient.subscribe("data1");
+  const service =
+    eClient.getService<OmitKeys<ServerData, ["adminKey"]>>("data1");
+  if (!service) return;
+  service.once("ready", async () => {
+    console.log("once ready", await service.target.sayHi());
+  });
 })();

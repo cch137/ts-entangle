@@ -1,18 +1,13 @@
-import type { EntangleOptions, EntangledClient } from "./client.js";
-import createEntangleClient, { Adaptor, Ready } from "./client.js";
+import Client, { EntangleAdaptor } from "./client.js";
+import type { ShuttleOptions } from "./types.js";
 
-export default function createEntangle<
-  T extends object,
-  OmittedKeys extends Array<keyof T> | undefined = undefined,
-  PickedKeys extends Array<keyof T> | undefined = undefined,
-  ReadonlyKeys extends Array<keyof T> | undefined = undefined
->(
+export default function createEntangle(
   address: string,
   protocols?: string | string[],
-  options?: EntangleOptions
-): EntangledClient<T, OmittedKeys, PickedKeys, ReadonlyKeys> {
-  return createEntangleClient<T, OmittedKeys, PickedKeys, ReadonlyKeys>(
-    (emitter) => {
+  shuttleOptions?: ShuttleOptions
+) {
+  return new Client(
+    new EntangleAdaptor((emitter) => {
       const ws = new WebSocket(address, protocols);
 
       ws.addEventListener("open", () => emitter.emit("connect"));
@@ -33,12 +28,7 @@ export default function createEntangle<
       ws.addEventListener("close", () => emitter.emit("disconnect"));
 
       return ws;
-    },
-    options
+    }),
+    shuttleOptions
   );
 }
-
-export { Adaptor, Ready };
-
-createEntangle.Adaptor = Adaptor;
-createEntangle.Ready = Ready;

@@ -1,6 +1,6 @@
 {
   "name": "@cch137/entangle",
-  "version": "0.0.24",
+  "version": "0.1.0",
   "description": "",
   "type": "module",
   "main": "index.js",
@@ -31,6 +31,7 @@
   "dependencies": {
     "@cch137/emitter": "^0.1.6",
     "@cch137/shuttle": "^0.2.8",
+    "@cch137/xbject": "^0.0.4",
     "ws": "^8.18.0"
   }
 }
