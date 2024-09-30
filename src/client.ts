@@ -7,6 +7,7 @@ import type {
   ShuttleOptions,
 } from "./types.js";
 import Id from "./utils/id.js";
+import * as xbject from "@cch137/xbject";
 
 type WebSocketLike = {
   send: (data: Uint8Array) => void;
@@ -155,7 +156,11 @@ class Service<T extends object = any> extends Emitter<{
   }
 }
 
+export { xbject };
+
 export default class Client {
+  static readonly xbject = xbject;
+
   readonly adaptor: EntangleAdaptor;
   readonly shuttleOptions?: ShuttleOptions;
   private readonly services = new Map<string, Service>();

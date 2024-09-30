@@ -1,7 +1,7 @@
 import { WebSocketServer } from "ws";
 import Server from "./server.js";
 import createEntangle from "./node.js";
-import { omit, OmitKeys, pick } from "@cch137/xbject";
+import { omit, OmitKeys } from "@cch137/xbject";
 
 const server = new WebSocketServer({ port: 4000 });
 

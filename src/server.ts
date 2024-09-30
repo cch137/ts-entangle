@@ -1,5 +1,5 @@
 import { parse, serialize } from "@cch137/shuttle";
-import { getAllKeys } from "@cch137/xbject";
+import * as xbject from "@cch137/xbject";
 import { WebSocket } from "ws";
 
 import type {
@@ -104,7 +104,7 @@ class Client {
     service.clients.add(this);
     if (!this.services.includes(service)) this.services.push(service);
 
-    const keys = getAllKeys(service.target);
+    const keys = xbject.getAllKeys(service.target);
     keys.forEach((key) => {
       if (typeof key === "string") this.syncKey(service, serviceId, key);
     });
@@ -169,7 +169,10 @@ export class Service {
   }
 }
 
+export { xbject };
+
 export default class Server extends Service {
+  static readonly xbject = xbject;
   readonly services: Map<string, Service>;
   shuttleOptions?: ShuttleOptions;
 
