@@ -31,7 +31,9 @@ const eServer = new Server({
   md5: true,
 });
 
-eServer.register("data1", serverData, () => omit(serverData, ["adminKey"]));
+const eServerService = eServer.register("data1", () =>
+  omit(serverData, ["adminKey"])
+);
 
 server.on("connection", (soc) => {
   eServer.handle(soc);
@@ -48,5 +50,14 @@ server.on("connection", (soc) => {
   if (!service) return;
   service.once("ready", async () => {
     console.log("once ready", await service.target.sayHi());
+    setTimeout(() => {
+      eServerService.luckyNumber = 9;
+    }, 1000);
+    setTimeout(() => {
+      service.target.luckyNumber = 8;
+    }, 2000);
+  });
+  service.on("change", async (key, value) => {
+    console.log("on change", key, value);
   });
 })();

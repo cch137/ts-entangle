@@ -77,6 +77,8 @@ export class EntangleAdaptor extends Emitter<
   }
 }
 
+const Original = Symbol();
+
 class Service<T extends object = any> extends Emitter<{
   ready: [];
   change: [key: string, value: any];
@@ -85,7 +87,7 @@ class Service<T extends object = any> extends Emitter<{
 }> {
   readonly id: string;
   client: Client;
-  _original = {} as T;
+  [Original] = {} as T;
   target: AsyncWrappedObject<T>;
   timeout: number;
 
@@ -98,7 +100,7 @@ class Service<T extends object = any> extends Emitter<{
     this.id = serviceId;
     this.client = client;
     this.timeout = options?.timeout ?? 10000;
-    this.target = new Proxy(this._original, {
+    this.target = new Proxy(this[Original], {
       set: (t, p, v) => {
         client.send({ o: "W", s: serviceId, k: String(p), v });
         return true;
@@ -175,18 +177,22 @@ export default class Client {
       if (!service) return;
       switch (res.o) {
         case "D": {
-          Reflect.deleteProperty(service._original, res.k);
+          const key = res.k;
+          service.emit("change", key, undefined);
+          Reflect.deleteProperty(service[Original], key);
           break;
         }
         case "W": {
-          Reflect.set(service._original, res.k, res.v);
+          const { k: key, v: value } = res;
+          service.emit("change", key, value);
+          Reflect.set(service[Original], key, value);
           break;
         }
         case "F": {
           const key = res.k;
-          Reflect.set(service._original, key, (...args: any[]) =>
-            service.callFunction(key, args)
-          );
+          const value = (...args: any[]) => service.callFunction(key, args);
+          service.emit("change", key, value);
+          Reflect.set(service[Original], key, value);
           break;
         }
         case "C": {

@@ -145,11 +145,11 @@ class Client {
   }
 }
 
-export class Service {
+export class Service<T extends object = object> {
   readonly clients = new Set<Client>();
-  target: object;
+  target: T;
 
-  constructor(target: object) {
+  constructor(target: T) {
     this.target = target;
   }
 
@@ -171,7 +171,7 @@ export class Service {
 
 export { xbject };
 
-export default class Server extends Service {
+export default class Server extends Service<Map<string, Service>> {
   static readonly xbject = xbject;
   readonly services: Map<string, Service>;
   shuttleOptions?: ShuttleOptions;
@@ -189,41 +189,39 @@ export default class Server extends Service {
 
   register<T extends object>(
     id: string,
-    original: T,
-    compute?: (original: T) => T | Partial<T>
+    target: T | Partial<T> | (() => T | Partial<T>)
   ) {
-    const proxy = new Proxy(original, {
-      set: (target, property, value) => {
-        const result = Reflect.set(target, property, value);
-        if (property in target) {
-          const resValue = (target as any)[property];
-          this.services.get(id)?.broadcast({
-            s: id,
-            o: typeof resValue === "function" ? "F" : "W",
-            k: String(property),
-            v: resValue,
-          });
-        }
-        return result;
-      },
-      deleteProperty: (target, property) => {
-        const exists = property in target;
-        const result = Reflect.deleteProperty(target, property);
-        if (exists) {
-          this.services.get(id)?.broadcast({
-            s: id,
-            o: "D",
-            k: String(property),
-          });
-        }
-        return result;
-      },
-    });
-
-    const target = compute ? compute(proxy) : proxy;
-    const service = new Service(target);
+    const service = new Service(
+      new Proxy(typeof target === "function" ? target() : target, {
+        set: (target, property, value) => {
+          const result = Reflect.set(target, property, value);
+          if (property in target) {
+            const resValue = (target as any)[property];
+            this.services.get(id)?.broadcast({
+              s: id,
+              o: typeof resValue === "function" ? "F" : "W",
+              k: String(property),
+              v: resValue,
+            });
+          }
+          return result;
+        },
+        deleteProperty: (target, property) => {
+          const exists = property in target;
+          const result = Reflect.deleteProperty(target, property);
+          if (exists) {
+            this.services.get(id)?.broadcast({
+              s: id,
+              o: "D",
+              k: String(property),
+            });
+          }
+          return result;
+        },
+      })
+    );
     this.services.set(id, service);
-    return proxy;
+    return service.target;
   }
 
   unregister(id: string) {
