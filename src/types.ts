@@ -1,4 +1,4 @@
-import type { OmitKeys, PickKeys } from "@cch137/xbject";
+import type { OmitKeys, PickKeys } from "@cch137/format-utils/objects.js";
 
 export type AsyncFunctionWrapper<T extends Function> = T extends (
   ...args: infer A

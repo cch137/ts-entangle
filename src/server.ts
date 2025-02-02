@@ -1,5 +1,5 @@
 import { parse, serialize } from "@cch137/shuttle";
-import * as xbject from "@cch137/xbject";
+import * as xbject from "@cch137/format-utils/objects.js";
 import { WebSocket } from "ws";
 
 import type {

@@ -29,9 +29,9 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@cch137/emitter": "^0.1.6",
-    "@cch137/shuttle": "^0.2.8",
-    "@cch137/xbject": "^0.0.4",
+    "@cch137/emitter": "^0.1.7",
+    "@cch137/format-utils": "^0.0.2",
+    "@cch137/shuttle": "^0.2.9",
     "ws": "^8.18.0"
   }
 }
